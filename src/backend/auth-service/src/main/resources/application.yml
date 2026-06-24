@@ -1,0 +1,56 @@
+server:
+  port: ${AUTH_SERVICE_INSTANCE_PORT:8081}
+
+spring:
+  application:
+    name: ${AUTH_SERVICE_INSTANCE_HOSTNAME:auth-service}
+  data:
+    mongodb:
+      uri: ${AUTH_MONGODB_URI:mongodb://localhost:27017/authservicedb}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://service-discovery:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    hostname: ${AUTH_SERVICE_INSTANCE_HOSTNAME:auth-service}
+    prefer-ip-address: false
+    instance-id: ${spring.application.name}:${server.port}
+
+management:
+  server:
+    port: ${AUTH_SERVICE_INSTANCE_PORT:8081}
+    servlet:
+      context-path: /
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name:auth-service}
+
+logging:
+  level:
+    com.smartgym: DEBUG
+    org.springframework: INFO
+
+auth:
+  seed:
+    admin:
+      username: ${AUTH_DEFAULT_ADMIN_USERNAME:ADMIN}
+      password: ${AUTH_DEFAULT_ADMIN_PASSWORD:ADMIN}
+
+security:
+  jwt:
+    issuer: ${JWT_ISSUER:smartgym-auth}
+    audience: ${JWT_AUDIENCE:smartgym-gateway}
+    access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:86400}
+    secret: ${JWT_SECRET:smartgym-jwt-secret-to-change-32-bytes-min}

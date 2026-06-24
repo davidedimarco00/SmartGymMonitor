@@ -1,0 +1,582 @@
+services:
+  ##############################
+  # EUREKA SERVICE DISCOVERY
+  ##############################
+  service-discovery:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: service-discovery
+    env_file:
+      - .env
+    container_name: ${SERVICE_DISCOVERY_INSTANCE_HOSTNAME}
+    ports:
+      - "${SERVICE_DISCOVERY_INSTANCE_PORT}:${SERVICE_DISCOVERY_INSTANCE_PORT}"
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${SERVICE_DISCOVERY_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  #####################
+  # API GATEWAY
+  #####################
+  gateway:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: gateway
+    env_file:
+      - .env
+    container_name: ${API_GATEWAY_INSTANCE_HOSTNAME}
+    ports:
+      - "${API_GATEWAY_INSTANCE_PORT}:${API_GATEWAY_INSTANCE_PORT}"
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${API_GATEWAY_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  #####################
+  # AUTH SERVICE
+  #####################
+  auth-service:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: auth-service
+    env_file:
+      - .env
+    container_name: ${AUTH_SERVICE_INSTANCE_HOSTNAME}
+    ports:
+      - "${AUTH_SERVICE_INSTANCE_PORT}:${AUTH_SERVICE_INSTANCE_PORT}"
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      mongo-auth:
+        condition: service_healthy
+      mongo-reset:
+        condition: service_completed_successfully
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${AUTH_SERVICE_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mongo-auth:
+    image: mongo:7
+    container_name: ${AUTH_MONGODB_HOST}
+    ports:
+      - "27017:${AUTH_MONGODB_PORT}"
+    volumes:
+      - mongo-auth-data:${MONGODB_VOLUME_PATH}
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "db.adminCommand(''ping'').ok" mongodb://localhost:${AUTH_MONGODB_PORT}/admin | grep 1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  ########################
+  # ANALYTICS SERVICE
+  ########################
+  analytics-service:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: analytics-service
+    env_file:
+      - .env
+    container_name: ${ANALYTICS_SERVICE_INSTANCE_HOSTNAME}
+    ports:
+      - "${ANALYTICS_SERVICE_INSTANCE_PORT}:${ANALYTICS_SERVICE_INSTANCE_PORT}"
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      mongo-analytics:
+        condition: service_healthy
+      mongo-reset:
+        condition: service_completed_successfully
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${ANALYTICS_SERVICE_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mongo-analytics:
+    image: mongo:7
+    container_name: ${ANALYTICS_MONGODB_HOST}
+    ports:
+      - "27018:${ANALYTICS_MONGODB_PORT}"
+    volumes:
+      - mongo-analytics-data:${MONGODB_VOLUME_PATH}
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "db.adminCommand(''ping'').ok" mongodb://localhost:${ANALYTICS_MONGODB_PORT}/admin | grep 1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  ########################
+  # AREA SERVICE
+  ########################
+  area-service:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: area-service
+    env_file:
+      - .env
+    container_name: ${AREA_SERVICE_INSTANCE_HOSTNAME}
+    ports:
+      - "${AREA_SERVICE_INSTANCE_PORT}:${AREA_SERVICE_INSTANCE_PORT}"
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      mongo-area:
+        condition: service_healthy
+      mongo-seed:
+        condition: service_completed_successfully
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${AREA_SERVICE_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mongo-area:
+    image: mongo:7
+    container_name: ${AREA_MONGODB_HOST}
+    ports:
+      - "27019:${AREA_MONGODB_PORT}"
+    volumes:
+      - mongo-area-data:${MONGODB_VOLUME_PATH}
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "db.adminCommand(''ping'').ok" mongodb://localhost:${AREA_MONGODB_PORT}/admin | grep 1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  mongo-seed:
+    image: mongo:7
+    container_name: mongo-seed
+    depends_on:
+      mongo-area:
+        condition: service_healthy
+      mongo-machine:
+        condition: service_healthy
+      mongo-reset:
+        condition: service_completed_successfully
+    command:
+      [
+        "sh",
+        "-c",
+        "mongoimport --host mongo-area --port ${AREA_MONGODB_PORT} --db areaservicedb --collection areaservicedbcollection --jsonArray --file /seed/areas.seed.json --mode upsert --upsertFields id && mongoimport --host mongo-machine --port ${MACHINE_MONGODB_PORT} --db machineservicedb --collection machines --jsonArray --file /seed/machines.seed.json --mode upsert --upsertFields machineId",
+      ]
+    volumes:
+      - ./src/backend/area-service/seed/areas.seed.json:/seed/areas.seed.json:ro
+      - ./src/backend/machine-service/seed/machines.seed.json:/seed/machines.seed.json:ro
+    networks:
+      - smartgym-net
+    restart: "no"
+
+  ########################
+  # MACHINE SERVICE
+  ########################
+  machine-service:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: machine-service
+    env_file:
+      - .env
+    container_name: ${MACHINE_SERVICE_INSTANCE_HOSTNAME}
+    ports:
+      - "${MACHINE_SERVICE_INSTANCE_PORT}:${MACHINE_SERVICE_INSTANCE_PORT}"
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      mongo-machine:
+        condition: service_healthy
+      mongo-seed:
+        condition: service_completed_successfully
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${MACHINE_SERVICE_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mongo-machine:
+    image: mongo:7
+    container_name: ${MACHINE_MONGODB_HOST}
+    ports:
+      - "27020:${MACHINE_MONGODB_PORT}"
+    volumes:
+      - mongo-machine-data:${MONGODB_VOLUME_PATH}
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "db.adminCommand(''ping'').ok" mongodb://localhost:${MACHINE_MONGODB_PORT}/admin | grep 1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  ########################
+  # TRACKING SERVICE
+  ########################
+  tracking-service:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: tracking-service
+    env_file:
+      - .env
+    container_name: ${TRACKING_SERVICE_INSTANCE_HOSTNAME}
+    ports:
+      - "${TRACKING_SERVICE_INSTANCE_PORT}:${TRACKING_SERVICE_INSTANCE_PORT}"
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      mongo-tracking:
+        condition: service_healthy
+      mongo-reset:
+        condition: service_completed_successfully
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${TRACKING_SERVICE_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mongo-tracking:
+    image: mongo:7
+    container_name: ${TRACKING_MONGODB_HOST}
+    ports:
+      - "27021:${TRACKING_MONGODB_PORT}"
+    volumes:
+      - mongo-tracking-data:${MONGODB_VOLUME_PATH}
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "db.adminCommand(''ping'').ok" mongodb://localhost:${TRACKING_MONGODB_PORT}/admin | grep 1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  ########################
+  # EMBEDDED SERVICE
+  ########################
+  embedded-service:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: embedded-service
+    env_file:
+      - .env
+    container_name: ${EMBEDDED_SERVICE_INSTANCE_HOSTNAME}
+    ports:
+      - "${EMBEDDED_SERVICE_INSTANCE_PORT}:${EMBEDDED_SERVICE_INSTANCE_PORT}"
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      mongo-embedded:
+        condition: service_healthy
+      mongo-reset:
+        condition: service_completed_successfully
+      area-service:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
+      machine-service:
+        condition: service_healthy
+      tracking-service:
+        condition: service_healthy
+    environment:
+      - AREA_SERVICE_BASE_URL=http://area-service:${AREA_SERVICE_INSTANCE_PORT}
+      - ANALYTICS_SERVICE_BASE_URL=http://analytics-service:${ANALYTICS_SERVICE_INSTANCE_PORT}
+      - MACHINE_SERVICE_BASE_URL=http://machine-service:${MACHINE_SERVICE_INSTANCE_PORT}
+      - TRACKING_SERVICE_BASE_URL=http://tracking-service:${TRACKING_SERVICE_INSTANCE_PORT}
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${EMBEDDED_SERVICE_INSTANCE_PORT}/actuator/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mongo-embedded:
+    image: mongo:7
+    container_name: ${EMBEDDED_MONGODB_HOST}
+    ports:
+      - "27022:${EMBEDDED_MONGODB_PORT}"
+    volumes:
+      - mongo-embedded-data:${MONGODB_VOLUME_PATH}
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "db.adminCommand(''ping'').ok" mongodb://localhost:${EMBEDDED_MONGODB_PORT}/admin | grep 1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  mongo-reset:
+    image: mongo:7
+    container_name: mongo-reset
+    depends_on:
+      mongo-auth:
+        condition: service_healthy
+      mongo-analytics:
+        condition: service_healthy
+      mongo-area:
+        condition: service_healthy
+      mongo-machine:
+        condition: service_healthy
+      mongo-tracking:
+        condition: service_healthy
+      mongo-embedded:
+        condition: service_healthy
+    env_file:
+      - .env
+    command:
+      [
+        "sh",
+        "-c",
+        "mongosh --quiet '${AUTH_MONGODB_URI}' --eval 'db.dropDatabase()' && mongosh --quiet '${ANALYTICS_MONGODB_URI}' --eval 'db.dropDatabase()' && mongosh --quiet '${AREA_MONGODB_URI}' --eval 'db.dropDatabase()' && mongosh --quiet '${MACHINE_MONGODB_URI}' --eval 'db.dropDatabase()' && mongosh --quiet '${TRACKING_MONGODB_URI}' --eval 'db.dropDatabase()' && mongosh --quiet '${EMBEDDED_MONGODB_URI}' --eval 'db.dropDatabase()'",
+      ]
+    networks:
+      - smartgym-net
+    restart: "no"
+
+  ########################
+  # FRONTEND FLASK
+  ########################
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    container_name: ${FRONTEND_INSTANCE_HOSTNAME}
+    ports:
+      - "${FRONTEND_HOST_PORT}:${FRONTEND_CONTAINER_PORT}"
+    depends_on:
+      gateway:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - smartgym-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:${FRONTEND_CONTAINER_PORT}/api/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ########################
+  # MQTT BROKER
+  ########################
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: ${MQTT_BROKER_HOST}
+    ports:
+      - "${MQTT_BROKER_PORT}:1883"
+    environment:
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        rm -f /mosquitto/config/passwordfile
+        mosquitto_passwd -b -c /mosquitto/config/passwordfile "$$MQTT_USERNAME" "$$MQTT_PASSWORD"
+        chown mosquitto:mosquitto /mosquitto/config/passwordfile
+        chmod 640 /mosquitto/config/passwordfile
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    networks:
+      - smartgym-net
+    restart: unless-stopped
+
+  ########################
+  # GO SIMULATOR
+  ########################
+  simulator:
+    build:
+      context: ./src/simulator
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    container_name: smartgym-simulator
+    depends_on:
+      gateway:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+      embedded-service:
+        condition: service_healthy
+    networks:
+      - smartgym-net
+    restart: unless-stopped
+
+  #####################
+  # PROMETHEUS        #
+  #####################
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ${PROMETHEUS_INSTANCE_HOSTNAME}
+    ports:
+      - "${PROMETHEUS_INSTANCE_PORT}:9090"
+    networks:
+      - smartgym-net
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+  #####################
+  # GRAFANA           #
+  #####################
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ${GRAFANA_INSTANCE_HOSTNAME}
+    ports:
+      - "${GRAFANA_INSTANCE_PORT}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    networks:
+      - smartgym-net
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+#############################
+# VOLUMES AND NETWORKS      #
+#############################
+volumes:
+  mongo-auth-data:
+  mongo-analytics-data:
+  mongo-area-data:
+  mongo-machine-data:
+  mongo-tracking-data:
+  mongo-embedded-data:
+  mosquitto-data:
+  mosquitto-log:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  smartgym-net:
+    driver: bridge

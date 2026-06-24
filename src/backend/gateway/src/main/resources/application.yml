@@ -1,0 +1,80 @@
+server:
+  port: ${API_GATEWAY_INSTANCE_PORT:8080}
+
+spring:
+  application:
+    name: ${API_GATEWAY_INSTANCE_HOSTNAME:gateway}
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth-service/**
+
+        - id: analytics-service
+          uri: lb://analytics-service
+          predicates:
+            - Path=/analytics-service/**
+
+        - id: embedded-service
+          uri: lb://embedded-service
+          predicates:
+            - Path=/embedded-service/**
+
+        - id: machine-service
+          uri: lb://machine-service
+          predicates:
+            - Path=/machine-service/**
+
+        - id: area-service
+          uri: lb://area-service
+          predicates:
+            - Path=/area-service/**
+
+        - id: tracking-service
+          uri: lb://tracking-service
+          predicates:
+            - Path=/tracking-service/**
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://service-discovery:8761/eureka/}
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    hostname: ${API_GATEWAY_INSTANCE_HOSTNAME:gateway}
+    prefer-ip-address: false
+    instance-id: ${spring.application.name}:${server.port}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  server:
+    port: ${API_GATEWAY_INSTANCE_PORT:8080}
+    servlet:
+      context-path: /
+
+security:
+  jwt:
+    issuer: ${JWT_ISSUER:smartgym-auth}
+    audience: ${JWT_AUDIENCE:smartgym-gateway}
+    secret: ${JWT_SECRET:smartgym-jwt-secret-to-change-32-bytes-min}
