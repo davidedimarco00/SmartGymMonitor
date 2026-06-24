@@ -32,7 +32,7 @@ export default withMermaid(
       socialLinks: [
         {
           icon: "github",
-          link: "https://github.com/piertv21/SmartGym-Monitor",
+          link: "https://github.com/davidedimarco00/SmartGym-Monitor",
         },
       ],
     },
