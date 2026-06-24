@@ -5,7 +5,7 @@ const reportPath = "/report";
 
 export default withMermaid(
   defineConfig({
-    base: "/",
+    base: "/SmartGymMonitor/",
     title: "SmartGym-Monitor",
     description: "A gym monitor system",
     themeConfig: {
